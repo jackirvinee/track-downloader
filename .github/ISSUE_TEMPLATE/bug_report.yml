@@ -1,0 +1,37 @@
+name: Bug report
+description: Report a reproducible problem in Track Downloader.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include media URLs, browser cookies, account details, private logs, or security-vulnerability details.
+  - type: input
+    id: summary
+    attributes:
+      label: What happened?
+      placeholder: A short, clear summary.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: Use a non-sensitive example. Do not include a real media URL.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: macOS 14.0
+    validations:
+      required: true
+  - type: textarea
+    id: tooling
+    attributes:
+      label: Tool versions
+      description: Include Track Downloader commit, yt-dlp version, and ffmpeg version.
+    validations:
+      required: true

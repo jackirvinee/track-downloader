@@ -1,0 +1,13 @@
+# Default review owner for the complete public source tree.
+* @jackirvinee
+
+# Security-sensitive contribution and release surfaces.
+/.github/ @jackirvinee
+/script/ @jackirvinee
+/Package.swift @jackirvinee
+/pyproject.toml @jackirvinee
+/Sources/TrackDownloaderCore/ @jackirvinee
+/Sources/TrackDownloader/Services/ @jackirvinee
+/track_downloader/ @jackirvinee
+/SECURITY.md @jackirvinee
+/SECURITY_MODEL.md @jackirvinee

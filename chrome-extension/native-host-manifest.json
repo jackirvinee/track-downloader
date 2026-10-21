@@ -1,0 +1,9 @@
+{
+  "name": "com.jackirvine.trackdownloader.chrome",
+  "description": "Track Downloader Chrome Companion",
+  "path": "__TRACK_DOWNLOADER_CHROME_HOST_PATH__",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://gddegmhgnhcjefmabdbpenipbadjklol/"
+  ]
+}

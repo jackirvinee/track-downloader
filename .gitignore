@@ -1,0 +1,51 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.build/
+.swiftpm/
+.DS_Store
+
+# Windows .NET build products stay local.
+/windows/**/bin/
+/windows/**/obj/
+
+# Local Codex and planning work is not part of the public project.
+.codex/
+.superpowers/
+artifacts/
+docs/superpowers/
+
+# Local downloaded media and metadata should stay out of git.
+downloads/
+*.log
+*.env
+*.env.*
+!.env.example
+.track-downloader-archive.txt
+track-downloader-quality-report.txt
+*.mp3
+*.m4a
+*.opus
+*.ogg
+*.flac
+*.wav
+*.aac
+*.webm
+*.info.json
+*.jpg
+*.png
+*.webp
+
+# Keep the deterministic native app icon sources; downloaded artwork remains ignored.
+!Track Downloader.app/Contents/Resources/AppIcon-1024.png
+!Track Downloader.app/Contents/Resources/AppIcon.iconset/
+!Track Downloader.app/Contents/Resources/AppIcon.iconset/*.png
+!windows/TrackDownloader.Windows.Package/Assets/
+!windows/TrackDownloader.Windows.Package/Assets/*.png
+
+# The app bundle is assembled locally. Keep its source plist and icon assets,
+# but never commit generated executables or signatures.
+Track Downloader.app/Contents/MacOS/
+Track Downloader.app/Contents/_CodeSignature/

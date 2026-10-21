@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Track Downloader Companion",
+  "version": "0.2.2",
+  "description": "Queue authorized YouTube and SoundCloud pages in Track Downloader.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1/V8wG2bYCHdHEwlgtMgGbiYyu0DiCpNBPuaiF4ci5NdKcS0IPi1i1nmY07NS5N6ES4DQoXQyefW4v4H00eLtIlJh6jt8xDWr94cm7TIfOA3bgm+DjbKMYekbUQPtcFSDgtOiI5F/6oBj2zXNLRLg0QjDDIk5Bp5gCYvDiUSlsi1PLO7zZccvGQ3CBHBgc+5+1n+uVRxsUDC6m476nIIYLZWgI5kigh79jU//B3nHfyP4CbDP0eTruTvKLFu61hwP1ooOo5kXaIOGYG4piBj5feuWN3uRGdf0SRk1kZICYq87rSFmhSzU7Q10EItgDOjirqgO+UyIuomjqp5q65imwIDAQAB",
+  "permissions": [
+    "activeTab",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "https://*.youtube.com/*",
+    "https://youtu.be/*",
+    "https://soundcloud.com/*",
+    "https://*.soundcloud.com/*"
+  ],
+  "action": {
+    "default_title": "Queue in Track Downloader",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.youtube.com/*",
+        "https://soundcloud.com/*",
+        "https://*.soundcloud.com/*"
+      ],
+      "js": ["content-logic.js", "content-script.js"],
+      "css": ["content-script.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

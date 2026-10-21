@@ -1,0 +1,35 @@
+#track-downloader-queue-button {
+  appearance: none;
+  background: #111;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font: 600 13px/1 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  margin: 8px 0 8px 10px;
+  padding: 9px 13px;
+  position: relative;
+  z-index: 20;
+}
+
+#track-downloader-queue-button:hover:not(:disabled) {
+  background: #2b2b2b;
+}
+
+#track-downloader-queue-button:focus-visible {
+  outline: 2px solid #3ea6ff;
+  outline-offset: 2px;
+}
+
+#track-downloader-queue-button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+#track-downloader-queue-button.track-downloader-floating-queue {
+  position: fixed;
+  right: 16px;
+  bottom: 80px;
+  z-index: 2147483647;
+}

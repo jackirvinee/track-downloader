@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.11'
+      - name: Install test dependencies
+        run: |
+          brew install ffmpeg
+          python3 -m pip install --disable-pip-version-check Pillow==10.4.0
+      - name: Run Swift tests
+        run: |
+          CLANG_MODULE_CACHE_PATH=/tmp/track-downloader-clang-cache \
+          SWIFTPM_MODULECACHE_OVERRIDE=/tmp/track-downloader-swiftpm-cache \
+          swift test --disable-sandbox
+      - name: Run Python tests
+        run: python3 -m unittest
+
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run Windows core checks
+        run: dotnet run --project windows/TrackDownloader.Windows.Tests/TrackDownloader.Windows.Tests.csproj --configuration Release
+      - name: Build Windows desktop app
+        run: dotnet build windows/TrackDownloader.Windows/TrackDownloader.Windows.csproj --configuration Release
+      - name: Build unsigned Windows MSIX package
+        shell: powershell
+        run: .\script\build_windows_package.ps1 -OutputDirectory "$env:RUNNER_TEMP\track-downloader-msix"
+
+  parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source with history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.11'
+      - name: Run platform parity tests
+        run: python3 -m unittest tests.test_platform_parity
+      - name: Verify platform parity diff
+        env:
+          PARITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PARITY_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 script/verify_platform_parity.py --base "$PARITY_BASE_SHA" --head "$PARITY_HEAD_SHA"

@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "principles": {
+    "nativeUIs": "separate",
+    "translation": "manual-only",
+    "parityMechanism": "capability-contract"
+  },
+  "capabilities": [
+    {
+      "id": "supported-url-single-download",
+      "description": "Validate a supported YouTube or SoundCloud HTTPS link and run one local download at a time.",
+      "macos": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "Sources/TrackDownloader/Services/DownloaderService.swift",
+          "tests/TrackDownloaderTests/DownloaderServiceTests.swift",
+          "Sources/TrackDownloaderCore/DownloadCommandBuilder.swift",
+          "tests/TrackDownloaderCoreTests/DownloadCommandBuilderTests.swift",
+          "docs/verification/2026-10-06-functional-gate.md"
+        ]
+      },
+      "windows": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "windows/TrackDownloader.Windows.Core/DownloadProcess.cs",
+          "windows/TrackDownloader.Windows.Tests/Program.cs"
+        ]
+      }
+    },
+    {
+      "id": "challenge-solver-deno-ejs",
+      "description": "Use Deno and the official yt-dlp EJS remote component for supported challenge solving.",
+      "macos": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "Sources/TrackDownloaderCore/DownloadCommandBuilder.swift",
+          "Sources/TrackDownloader/Services/DownloaderService.swift",
+          "tests/TrackDownloaderCoreTests/DownloadCommandBuilderTests.swift",
+          "tests/TrackDownloaderTests/DownloaderServiceTests.swift"
+        ]
+      },
+      "windows": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "windows/TrackDownloader.Windows.Core/ToolLocator.cs",
+          "windows/TrackDownloader.Windows.Core/DownloadProcess.cs",
+          "windows/TrackDownloader.Windows.Core/YtDlpArguments.cs",
+          "windows/TrackDownloader.Windows.Tests/Program.cs"
+        ]
+      }
+    },
+    {
+      "id": "active-download-progress",
+      "description": "Show active transfer progress and cancellation using platform-native visual signals.",
+      "macos": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "Sources/TrackDownloader/Views/DownloadProgressView.swift",
+          "Sources/TrackDownloader/Views/VUProgressMeter.swift",
+          "Sources/TrackDownloaderCore/VUProgressMeterRules.swift",
+          "tests/TrackDownloaderCoreTests/VUProgressMeterRulesTests.swift"
+        ]
+      },
+      "windows": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "windows/TrackDownloader.Windows.Core/DownloadProgressParser.cs",
+          "windows/TrackDownloader.Windows/MainWindow.xaml",
+          "windows/TrackDownloader.Windows/MainWindow.xaml.cs",
+          "windows/TrackDownloader.Windows.Tests/Program.cs"
+        ]
+      }
+    },
+    {
+      "id": "quality-inspection",
+      "description": "Inspect the saved audio and report codec, bitrate, sample rate, and an honest quality verdict.",
+      "macos": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "Sources/TrackDownloaderCore/AudioQuality.swift",
+          "tests/TrackDownloaderCoreTests/AudioQualityTests.swift"
+        ]
+      },
+      "windows": {
+        "status": "planned",
+        "verification": "not-tested",
+        "evidence": []
+      }
+    },
+    {
+      "id": "history-library",
+      "description": "Show downloaded tracks and preserve non-destructive favorites, crates, search, sort, and column preferences.",
+      "macos": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "Sources/TrackDownloader/Stores/DownloadedTrackStore.swift",
+          "Sources/TrackDownloader/Views/DownloadedTracksView.swift",
+          "tests/TrackDownloaderTests/DownloadedTrackStoreTests.swift",
+          "Sources/TrackDownloader/Views/ContentView.swift",
+          "docs/verification/2026-10-06-functional-gate.md"
+        ]
+      },
+      "windows": {
+        "status": "planned",
+        "verification": "not-tested",
+        "evidence": []
+      }
+    },
+    {
+      "id": "frequency-colored-waveform-overview",
+      "description": "Analyze local audio into an adaptive low-, mid-, and high-frequency RGB overview for library rows and the selected-track detail.",
+      "macos": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "Sources/TrackDownloader/Models/WaveformProjection.swift",
+          "Sources/TrackDownloader/Services/AudioWaveformLoading.swift",
+          "Sources/TrackDownloader/Views/DownloadedTracksTable.swift",
+          "Sources/TrackDownloader/Views/LibrarySelectionDetailView.swift",
+          "tests/TrackDownloaderTests/AudioWaveformLoaderTests.swift",
+          "tests/TrackDownloaderTests/WaveformProjectionTests.swift"
+        ]
+      },
+      "windows": {
+        "status": "planned",
+        "verification": "not-tested",
+        "evidence": []
+      }
+    },
+    {
+      "id": "settings-manual-update-notice",
+      "description": "Expose settings, installed release/build identity, and a manual stable-release notice without automatic installation.",
+      "macos": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "Sources/TrackDownloader/Stores/UpdateStore.swift",
+          "Sources/TrackDownloader/Views/SettingsAboutView.swift",
+          "tests/TrackDownloaderTests/UpdateStoreTests.swift",
+          "tests/test_track_downloader_identity.py"
+        ]
+      },
+      "windows": {
+        "status": "planned",
+        "verification": "not-tested",
+        "evidence": []
+      }
+    },
+    {
+      "id": "chrome-browser-handoff",
+      "description": "Persist a bounded queue of supported Chrome track pages for user-started sequential downloads without opening or focusing the native app.",
+      "macos": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "chrome-extension/content-script.js",
+          "chrome-extension/service-worker.js",
+          "Sources/TrackDownloaderChromeCompanion/ChromeCompanionQueue.swift",
+          "Sources/TrackDownloaderChromeCompanion/NativeMessageHost.swift",
+          "Sources/TrackDownloader/Stores/ChromeQueueStore.swift",
+          "Sources/TrackDownloader/Views/ChromeQueueView.swift",
+          "tests/TrackDownloaderChromeCompanionTests/ChromeCompanionRequestTests.swift",
+          "tests/TrackDownloaderChromeCompanionTests/NativeMessageHostTests.swift",
+          "tests/TrackDownloaderTests/ChromeQueueStoreTests.swift",
+          "chrome-extension/tests/manifest.test.mjs"
+        ]
+      },
+      "windows": {
+        "status": "planned",
+        "verification": "not-tested",
+        "evidence": []
+      }
+    },
+    {
+      "id": "installer-signing-device-proof",
+      "description": "Package, sign, and validate the application on a clean device as a separate release gate.",
+      "macos": {
+        "status": "partial",
+        "verification": "external-required",
+        "evidence": [
+          "script/build_and_run.sh",
+          "README.md"
+        ]
+      },
+      "windows": {
+        "status": "partial",
+        "verification": "external-required",
+        "evidence": [
+          "windows/TrackDownloader.Windows.Package/AppxManifest.xml",
+          "script/build_windows_package.ps1",
+          "script/verify_windows_device.ps1",
+          "tests/test_windows_packaging.py"
+        ]
+      }
+    }
+  ]
+}

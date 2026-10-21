@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "track-downloader"
+version = "0.1.0"
+description = "Lightweight DJ-focused YouTube and SoundCloud audio downloader wrapper."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Jack Irvine" }]
+dependencies = []
+
+[project.scripts]
+track-downloader = "track_downloader.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["track_downloader*"]
