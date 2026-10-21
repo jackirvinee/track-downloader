@@ -4,6 +4,23 @@ public enum DownloadCommandBuilder {
     public static let outputTemplate =
         "%(extractor_key)s/%(uploader|Unknown Artist)s - %(title).180B [%(id)s].%(ext)s"
 
+    /// An uploader's original keeps the extension of their file name, and `--audio-format best`
+    /// only leaves files alone when that extension is one yt-dlp knows in lower case. Otherwise it
+    /// re-encodes PCM (`.aif`, `.WAV`) to a low-bitrate MP3, and for `.MP3`/`.M4A`/`.FLAC` it
+    /// writes the "converted" copy over the same file on a case-insensitive disk and loses it.
+    /// Normalising the extension before the file is named keeps every original byte for byte.
+    public static let originalExtensionArguments = [
+        ("(?i)^aif[cf]?$", "aiff"),
+        ("(?i)^(wave?|bwf)$", "wav"),
+        ("(?i)^mp3$", "mp3"),
+        ("(?i)^m4a$", "m4a"),
+        ("(?i)^flac$", "flac"),
+        ("(?i)^ogg$", "ogg"),
+        ("(?i)^opus$", "opus")
+    ].flatMap { pattern, replacement in
+        ["--replace-in-metadata", "video:ext", pattern, replacement]
+    }
+
     public static func arguments(
         sourceURL: URL,
         outputDirectory: URL,
@@ -16,6 +33,7 @@ public enum DownloadCommandBuilder {
             "--remote-components", "ejs:github"
         ]
         + YTDLPAudioSelectionPolicy.arguments
+        + originalExtensionArguments
         + [
             "--extract-audio",
             "--audio-format", "best",

@@ -12,8 +12,8 @@ Track Downloader is a compact native macOS utility for saving audio from YouTube
 - Pasted links immediately clear the input and enter the persistent Track Queue for source checking; typed links enter it with Return. The input remains available during checks and downloads. Each ready row offers Download, and explicitly requested downloads run one at a time.
 - Checks queued sources independently of adding more links. This may contact the source platform, but it does not download media during inspection; choose **Download** only after reviewing the source card.
 - Runs one local download at a time with clear resolving, downloading, processing, and quality-inspection stages. A job can be cancelled, retried, or reset.
-- Requests `bestaudio/best`, embeds available metadata and artwork, writes a complete `.info.json` sidecar, and maintains a per-output-folder download archive to avoid duplicates.
-- Does not read browser cookies by default. The advanced command-line flow can explicitly ask `yt-dlp` to use a selected local browser profile for an account you control.
+- Prefers an available uploader original, then the best exposed audio; embeds available metadata and artwork, scrubs cookie and authorization fields from `.info.json` sidecars, and maintains a per-output-folder archive to avoid duplicates.
+- Does not read browser cookies by default. Settings offers an explicit SoundCloud browser/profile choice for an account you control. It is off by default and applies only to SoundCloud. The command-line flow also has an explicit browser-cookie option.
 - Measures the saved file with `ffprobe` and reports its bitrate, codec, sample rate, and an honest quality verdict. Limited or unmeasurable results offer **Find Better Source**; they are never upscaled or represented as restored quality.
 - Provides an inline local library with search, scopes, favourites, saved crates, configurable columns, preview, and Finder actions. Organization is non-destructive and never moves or edits audio files.
 - Double-click a Library track to preview it with Quick Look. Preview does not hand the audio file to Apple Music or import it into a music library.
@@ -126,11 +126,15 @@ To update manually, download the named `.zip` asset from that GitHub Release pag
 
 ## Using Track Downloader
 
-Open the app and paste or type one supported link. After 400 ms, Track Downloader checks the source locally with `yt-dlp`; this can contact the source platform but does not download media. Browser cookies remain off during native preflight. Review the source card, then choose **Download** to start the existing local media workflow. Track Downloader has no service that receives your URLs, cookies, media, or quality reports.
+Open the app and paste or type one supported link. After 400 ms, Track Downloader checks the source locally with `yt-dlp`; this can contact the source platform but does not download media. Browser cookies remain off unless you explicitly enable SoundCloud sign-in in Settings; that choice also applies to SoundCloud source inspection. Review the source card, then choose **Download** to start the existing local media workflow. Track Downloader has no service that receives your URLs, cookies, media, or quality reports.
 
 Keep the transfer area on the current job and use the inline library below it to search, filter, preview, reveal, favourite, or group saved tracks into crates. Those library actions update local organization metadata only; they do not move, rename, or rewrite audio files.
 
-Browser-cookie access is off by default, including during native source preflight. The command-line flow remains separate: if an authorized download genuinely requires an account session, its explicit option below can ask `yt-dlp` to read cookies from a browser profile you explicitly name. Track Downloader does not copy cookie values into its own files, but `yt-dlp` receives the selected session authority. Never share browser cookies, download logs, media URLs, or account data in an issue.
+Browser-cookie access is off by default. In Settings, choosing a SoundCloud browser/profile allows yt-dlp to read that session during SoundCloud inspection and download; other platforms do not use that native preference. Only the browser/profile preference is stored, and sidecar cookie and authorization fields are scrubbed after downloads, including failures. The command-line flow remains separate: if an authorized download genuinely requires an account session, its explicit option below can ask `yt-dlp` to read cookies from a browser profile you explicitly name. Track Downloader does not copy cookie values into its own files, but `yt-dlp` receives the selected session authority. Never share browser cookies, download logs, media URLs, or account data in an issue.
+
+### CDJ-compatible output
+
+On macOS and in Python, downloaded output is checked against common Pioneer CDJ/XDJ format constraints. Compatible files are retained; other formats may be remuxed or converted to WAV after validation. Lossy-to-WAV conversion does not restore audio detail. Quality is measured on the downloaded source before conversion. The Python CLI offers `--no-cdj-safe` to retain the source format. These source-tested rules do not establish physical deck compatibility; the Windows preview does not yet implement this step.
 
 ### Command line
 

@@ -77,6 +77,21 @@ final class SourcePreflightParserTests: XCTestCase {
         XCTAssertEqual(result.assessment, .findBetterSource)
     }
 
+    func testOnlyFormatsEveryDeckPlaysAreReadyWithoutConversion() {
+        func assessment(_ codec: String, _ rate: Int) -> SourceAssessment {
+            SourceAssessment.assess(SelectedSourceAudio(codec: codec, bitrateKbps: 900, sampleRateHz: rate))
+        }
+
+        XCTAssertEqual(assessment("mp4a.40.2", 44_100), .readyToDownload)
+        XCTAssertEqual(assessment("mp3", 44_100), .readyToDownload)
+        XCTAssertEqual(assessment("pcm_s24le", 48_000), .readyToDownload)
+        // FLAC/ALAC only play on the NXS2/3000, so they need the post-download WAV conversion.
+        XCTAssertEqual(assessment("flac", 44_100), .compatibleExportLikely)
+        XCTAssertEqual(assessment("alac", 44_100), .compatibleExportLikely)
+        XCTAssertEqual(assessment("mp4a.40.5", 44_100), .compatibleExportLikely)
+        XCTAssertEqual(assessment("pcm_s24le", 96_000), .compatibleExportLikely)
+    }
+
     func testRejectsMalformedJSON() {
         XCTAssertThrowsError(try SourcePreflightParser.parse(Data("{".utf8))) { error in
             XCTAssertEqual(error as? SourcePreflightParsingError, .invalidJSON)

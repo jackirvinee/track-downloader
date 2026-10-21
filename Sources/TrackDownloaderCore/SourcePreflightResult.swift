@@ -30,8 +30,11 @@ public enum SourceAssessment: Equatable, Sendable {
               let codec = audio.codec?.lowercased()
         else { return .findBetterSource }
 
-        let directlyCompatible = Set(["aac", "alac", "flac", "mp3", "pcm_s16le", "pcm_s24le"])
-        return directlyCompatible.contains(codec) ? .readyToDownload : .compatibleExportLikely
+        // FLAC/ALAC are not directly compatible: only the NXS2/3000 read them, so they get
+        // converted to WAV after download.
+        return CDJFormatRules.isUniversallyPlayable(sourceCodec: codec, sampleRateHz: audio.sampleRateHz)
+            ? .readyToDownload
+            : .compatibleExportLikely
     }
 }
 

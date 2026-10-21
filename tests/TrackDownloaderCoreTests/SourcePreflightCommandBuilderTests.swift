@@ -9,8 +9,8 @@ final class SourcePreflightCommandBuilderTests: XCTestCase {
 
         XCTAssertEqual(value(after: "--js-runtimes", in: arguments), "deno")
         XCTAssertEqual(value(after: "--remote-components", in: arguments), "ejs:github")
-        XCTAssertEqual(value(after: "--format", in: arguments), "bestaudio/best")
-        XCTAssertEqual(value(after: "--format-sort", in: arguments), "acodec,abr,asr")
+        XCTAssertEqual(value(after: "--format", in: arguments), "download/bestaudio/best")
+        XCTAssertEqual(value(after: "--format-sort", in: arguments), "quality,abr,acodec,asr")
         XCTAssertTrue(arguments.contains("--dump-single-json"))
         XCTAssertTrue(arguments.contains("--simulate"))
         XCTAssertTrue(arguments.contains("--no-playlist"))

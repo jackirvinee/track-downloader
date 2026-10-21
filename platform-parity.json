@@ -200,6 +200,40 @@
           "tests/test_windows_packaging.py"
         ]
       }
+    },
+    {
+      "id": "cdj-compatible-output",
+      "description": "Validate or convert output against common CDJ format constraints; physical deck qualification remains external.",
+      "macos": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "Sources/TrackDownloaderCore/CDJCompatibility.swift",
+          "tests/TrackDownloaderCoreTests/CDJCompatibilityTests.swift"
+        ]
+      },
+      "windows": {
+        "status": "planned",
+        "verification": "not-tested",
+        "evidence": []
+      }
+    },
+    {
+      "id": "soundcloud-browser-sign-in",
+      "description": "Opt-in SoundCloud browser session selection and metadata sidecar credential scrubbing.",
+      "macos": {
+        "status": "implemented",
+        "verification": "source-tested",
+        "evidence": [
+          "Sources/TrackDownloaderCore/SoundCloudSignIn.swift",
+          "tests/TrackDownloaderCoreTests/SoundCloudSignInTests.swift"
+        ]
+      },
+      "windows": {
+        "status": "planned",
+        "verification": "not-tested",
+        "evidence": []
+      }
     }
   ]
 }

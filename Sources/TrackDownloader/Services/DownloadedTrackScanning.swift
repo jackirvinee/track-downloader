@@ -12,9 +12,11 @@ protocol DownloadedTrackScanning: Sendable {
 
 struct DownloadedTrackScanner: DownloadedTrackScanning {
     private static let supportedAudioExtensions: Set<String> = [
-        "aac", "aiff", "alac", "flac", "m4a", "mp3",
+        "aac", "aif", "aiff", "alac", "flac", "m4a", "mp3",
         "oga", "ogg", "opus", "wav", "webm"
     ]
+    /// Prefix of the half-written copy DownloaderService makes while converting a download.
+    static let conversionTemporaryPrefix = ".track-downloader-"
 
     func scan(in outputDirectory: URL) -> DownloadedTrackScanResult {
         let fileManager = FileManager.default
@@ -37,6 +39,7 @@ struct DownloadedTrackScanner: DownloadedTrackScanning {
             let resolvedFileURL = fileURL.resolvingSymlinksInPath().standardizedFileURL
             guard isWithinOutputRoot(resolvedFileURL, root: resolvedRoot),
                   Self.supportedAudioExtensions.contains(fileURL.pathExtension.lowercased()),
+                  !fileURL.lastPathComponent.hasPrefix(Self.conversionTemporaryPrefix),
                   let values = try? fileURL.resourceValues(
                     forKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey]
                   ),

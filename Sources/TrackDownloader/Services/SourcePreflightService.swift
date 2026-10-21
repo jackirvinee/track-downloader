@@ -9,6 +9,7 @@ protocol SourcePreflightServicing: Sendable {
 enum SourcePreflightServiceError: Error, Equatable, Sendable {
     case missingDependency(name: String)
     case privateSource
+    case signInUnreadable
     case unavailable
     case transient
     case invalidResponse
@@ -20,6 +21,8 @@ enum SourcePreflightServiceError: Error, Equatable, Sendable {
             "Source checking needs yt-dlp and Deno. Open Settings > Engine Health."
         case .privateSource:
             "This source is private or requires access."
+        case .signInUnreadable:
+            "Track Downloader couldn't read your SoundCloud login from the browser. Check Settings > SoundCloud Sign-In."
         case .unavailable:
             "This source is unavailable."
         case .transient:
@@ -33,25 +36,30 @@ enum SourcePreflightServiceError: Error, Equatable, Sendable {
 struct SourcePreflightService: SourcePreflightServicing {
     private let processRunner: any ProcessRunning
     private let toolResolver: @Sendable (String) throws -> URL
+    private let signIn: @Sendable () -> SoundCloudSignIn
 
     init(
         processRunner: any ProcessRunning = ProcessRunner(),
-        toolResolver: @escaping @Sendable (String) throws -> URL = { try ToolResolver.resolve($0) }
+        toolResolver: @escaping @Sendable (String) throws -> URL = { try ToolResolver.resolve($0) },
+        signIn: @escaping @Sendable () -> SoundCloudSignIn = { SoundCloudSignInPreference.load() }
     ) {
         self.processRunner = processRunner
         self.toolResolver = toolResolver
+        self.signIn = signIn
     }
 
     func inspect(sourceURL: URL) async throws -> SourcePreflightResult {
         let ytDLP = try resolveTool(named: "yt-dlp")
         let deno = try resolveTool(named: "deno")
 
+        let cookiesBrowser = signIn().cookiesBrowser(for: sourceURL)
         let process: CommandResult
         do {
             process = try await processRunner.run(
                 executable: ytDLP,
                 arguments: SourcePreflightCommandBuilder.arguments(
                     sourceURL: sourceURL,
+                    cookiesBrowser: cookiesBrowser,
                     denoPath: deno.path
                 ),
                 onLine: { _ in }
@@ -61,7 +69,7 @@ struct SourcePreflightService: SourcePreflightServicing {
         }
 
         guard process.exitCode == 0 else {
-            throw classifiedFailure(from: process.output)
+            throw classifiedFailure(from: process.output, usedSignIn: cookiesBrowser != nil)
         }
 
         let data = Data(process.output.utf8)
@@ -90,7 +98,7 @@ struct SourcePreflightService: SourcePreflightServicing {
         }
     }
 
-    private func classifiedFailure(from output: String) -> SourcePreflightServiceError {
+    private func classifiedFailure(from output: String, usedSignIn: Bool) -> SourcePreflightServiceError {
         let normalized = output
             .replacingOccurrences(
                 of: "https?://\\S+",
@@ -98,6 +106,12 @@ struct SourcePreflightService: SourcePreflightServicing {
                 options: .regularExpression
             )
             .lowercased()
+        if usedSignIn,
+           normalized.contains("cookie"),
+           ["could not", "failed", "not permitted", "permission denied", "unable to"]
+            .contains(where: normalized.contains) {
+            return .signInUnreadable
+        }
         if normalized.contains("private")
             || normalized.contains("sign in")
             || normalized.contains("login")

@@ -54,6 +54,28 @@ final class SourcePreflightServiceTests: XCTestCase {
         forbidden.forEach { XCTAssertFalse(arguments.contains($0), "Unexpected \($0)") }
     }
 
+    func testSignInIsUsedForSoundCloudAndReportedWhenUnreadable() async throws {
+        let runner = RecordingPreflightProcessRunner(
+            result: .init(exitCode: 1, output: "ERROR: could not find chrome cookies database in \"/Users/x\"")
+        )
+        let service = SourcePreflightService(
+            processRunner: runner,
+            toolResolver: { _ in URL(fileURLWithPath: "/usr/bin/true") },
+            signIn: { SoundCloudSignIn(browser: .chrome, profile: "Default") }
+        )
+
+        do {
+            _ = try await service.inspect(sourceURL: URL(string: "https://soundcloud.com/a/b")!)
+            XCTFail("Expected a failure")
+        } catch {
+            XCTAssertEqual(error as? SourcePreflightServiceError, .signInUnreadable)
+        }
+        XCTAssertEqual(
+            value(after: "--cookies-from-browser", in: try XCTUnwrap(runner.invocation?.arguments)),
+            "chrome:Default"
+        )
+    }
+
     func testMissingToolMapsToSanitizedDependencyError() async {
         let service = SourcePreflightService(
             processRunner: RecordingPreflightProcessRunner(result: .init(exitCode: 0, output: validSourceJSON)),

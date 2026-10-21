@@ -9,6 +9,7 @@ from typing import BinaryIO
 
 AUDIO_EXTENSIONS = {
     ".aac",
+    ".aif",
     ".aiff",
     ".alac",
     ".flac",
