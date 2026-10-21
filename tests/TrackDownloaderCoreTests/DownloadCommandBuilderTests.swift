@@ -24,8 +24,8 @@ final class DownloadCommandBuilderTests: XCTestCase {
             cookiesBrowser: "chrome"
         )
 
-        XCTAssertTrue(command.contains("bestaudio/best"))
-        XCTAssertTrue(command.contains("acodec,abr,asr"))
+        XCTAssertEqual(value(after: "--format", in: command), "download/bestaudio/best")
+        XCTAssertEqual(value(after: "--format-sort", in: command), "quality,abr,acodec,asr")
         XCTAssertTrue(command.containsContiguousSubsequence(YTDLPAudioSelectionPolicy.arguments))
         XCTAssertTrue(command.contains("--embed-metadata"))
         XCTAssertTrue(command.contains("--embed-thumbnail"))
@@ -56,6 +56,29 @@ final class DownloadCommandBuilderTests: XCTestCase {
 
         XCTAssertEqual(value(after: "--js-runtimes", in: command), "deno")
         XCTAssertEqual(value(after: "--remote-components", in: command), "ejs:github")
+    }
+
+    func testNormalisesOriginalFileExtensionsBeforeAudioExtraction() {
+        let command = DownloadCommandBuilder.arguments(
+            sourceURL: URL(string: "https://soundcloud.com/artist/free-download")!,
+            outputDirectory: URL(fileURLWithPath: "/tmp/TrackDownloader Output", isDirectory: true)
+        )
+        let rules = stride(from: 0, to: command.count - 3, by: 1)
+            .filter { command[$0] == "--replace-in-metadata" }
+            .map { command[$0 + 1 ... $0 + 3].joined(separator: " ") }
+
+        XCTAssertTrue(command.containsContiguousSubsequence(DownloadCommandBuilder.originalExtensionArguments))
+        XCTAssertTrue(rules.contains("video:ext (?i)^aif[cf]?$ aiff"))
+        XCTAssertTrue(rules.contains("video:ext (?i)^(wave?|bwf)$ wav"))
+        XCTAssertEqual(
+            Set(rules.compactMap { $0.split(separator: " ").last.map(String.init) }),
+            ["aiff", "wav", "mp3", "m4a", "flac", "ogg", "opus"]
+        )
+        XCTAssertFalse(
+            SourcePreflightCommandBuilder.arguments(sourceURL: URL(string: "https://soundcloud.com/a/b")!)
+                .contains("--replace-in-metadata"),
+            "preflight never names a file"
+        )
     }
 
     private func value(after option: String, in arguments: [String]) -> String? {

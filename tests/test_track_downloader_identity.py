@@ -279,8 +279,8 @@ class TrackDownloaderIdentityContractTests(unittest.TestCase):
         self.assertEqual(info["CFBundleDisplayName"], "Track Downloader")
         self.assertEqual(info["CFBundleIdentifier"], "com.jackirvine.trackdownloader")
         self.assertEqual(info["CFBundleExecutable"], "TrackDownloader")
-        self.assertEqual(info["CFBundleShortVersionString"], "1.1.0")
-        self.assertEqual(info["CFBundleVersion"], "20261008.1")
+        self.assertEqual(info["CFBundleShortVersionString"], "1.3.0")
+        self.assertEqual(info["CFBundleVersion"], "20261017.1")
 
     def test_allowlisted_surface_has_no_retired_identity(self) -> None:
         retired_markers = (b"DJ" + b"DL", b"DJ" + b" DL")

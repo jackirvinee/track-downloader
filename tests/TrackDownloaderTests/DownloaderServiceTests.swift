@@ -88,6 +88,65 @@ final class DownloaderServiceTests: XCTestCase {
         XCTAssertEqual(progress.values[1].detail, "3.2MiB/s · 00:12")
     }
 
+    func testPassesSoundCloudSignInOnlyForSoundCloudLinks() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let runner = StubProcessRunner(responses: [
+            .init(lines: [], result: .init(exitCode: 1, output: "ERROR: expected test failure")),
+            .init(lines: [], result: .init(exitCode: 1, output: "ERROR: expected test failure"))
+        ])
+        let service = DownloaderService(
+            outputDirectory: directory,
+            processRunner: runner,
+            toolResolver: { _ in URL(fileURLWithPath: "/usr/bin/true") },
+            signIn: { SoundCloudSignIn(browser: .chrome, profile: "Profile 9") }
+        )
+
+        _ = try await downloadFailure(from: service)
+        _ = try? await service.download(sourceURL: URL(string: "https://youtu.be/example")!) { _ in }
+
+        let soundCloud = try XCTUnwrap(runner.invocations.first?.arguments)
+        XCTAssertEqual(value(after: "--cookies-from-browser", in: soundCloud), "chrome:Profile 9")
+        let youTube = try XCTUnwrap(runner.invocations.last?.arguments)
+        XCTAssertFalse(youTube.contains("--cookies-from-browser"))
+    }
+
+    func testScrubsCookiesFromSidecarsEvenWhenDownloadFails() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sidecar = directory.appendingPathComponent("Soundcloud/Artist - Track [1].info.json")
+        let untouched = directory.appendingPathComponent("Old.info.json")
+        let runner = StubProcessRunner(responses: [
+            .init(lines: [], result: .init(exitCode: 1, output: "ERROR: expected test failure"))
+        ])
+        runner.beforeFirstRun = {
+            try? FileManager.default.createDirectory(
+                at: sidecar.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try? Data(#"{"title":"Track","formats":[{"cookies":"oauth_token=SECRET"}]}"#.utf8).write(to: sidecar)
+        }
+        try Data(#"{"title":"Old","cookies":"left alone"}"#.utf8).write(to: untouched)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: -3600)],
+            ofItemAtPath: untouched.path
+        )
+        let service = DownloaderService(
+            outputDirectory: directory,
+            processRunner: runner,
+            toolResolver: { _ in URL(fileURLWithPath: "/usr/bin/true") },
+            signIn: { SoundCloudSignIn(browser: .chrome, profile: "") }
+        )
+
+        _ = try await downloadFailure(from: service)
+
+        let cleaned = try String(contentsOf: sidecar, encoding: .utf8)
+        XCTAssertFalse(cleaned.contains("SECRET"))
+        XCTAssertTrue(cleaned.contains("Track"))
+        XCTAssertTrue(try String(contentsOf: untouched, encoding: .utf8).contains("left alone"))
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: sidecar.deletingLastPathComponent().path)
+        XCTAssertEqual(leftovers, [sidecar.lastPathComponent])
+    }
+
     func testKeepsDownloadedTrackWhenItsInfoSidecarIsMalformed() async throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -554,6 +613,95 @@ final class DownloaderServiceTests: XCTestCase {
         XCTAssertEqual(result.quality.codec, "aac")
     }
 
+    func testConvertsFLACDownloadToWAVThatKeepsItsSidecar() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let flacURL = directory.appendingPathComponent("Artist - Track [1].flac")
+        let wavURL = directory.appendingPathComponent("Artist - Track [1].wav")
+        try makeAudioFixture(at: flacURL, codec: "flac")
+        try Data("{\"title\": \"Night Drive\"}".utf8)
+            .write(to: directory.appendingPathComponent("Artist - Track [1].info.json"))
+
+        let result = try await realToolsService(directory, finalPath: flacURL.path)
+            .download(sourceURL: URL(string: "https://soundcloud.com/artist/track")!) { _ in }
+
+        XCTAssertEqual(result.fileURL, wavURL)
+        XCTAssertEqual(result.cdjSafety, .converted(.convertToWAV(bitDepth: 16, sampleRateHz: 48_000, downmixToStereo: false)))
+        XCTAssertEqual(result.quality.codec, "flac", "quality describes the source, measured before conversion")
+        XCTAssertEqual(result.quality.fileURL, wavURL)
+        XCTAssertEqual(result.metadata.title, "Night Drive")
+        XCTAssertEqual(try audioCodec(of: wavURL), "pcm_s16le")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: flacURL.path))
+        XCTAssertEqual(try temporaryConversionFiles(in: directory), [])
+        XCTAssertTrue(
+            try String(contentsOf: directory.appendingPathComponent("track-downloader-quality-report.txt"))
+                .contains("Artist - Track [1].wav | ")
+        )
+    }
+
+    func testRewritesFloatWAVInPlace() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let wavURL = directory.appendingPathComponent("Artist - Track.wav")
+        try makeAudioFixture(at: wavURL, codec: "pcm_f32le")
+
+        let result = try await realToolsService(directory, finalPath: wavURL.path)
+            .download(sourceURL: URL(string: "https://soundcloud.com/artist/track")!) { _ in }
+
+        XCTAssertEqual(result.fileURL, wavURL)
+        XCTAssertEqual(result.cdjSafety, .converted(.convertToWAV(bitDepth: 24, sampleRateHz: 48_000, downmixToStereo: false)))
+        XCTAssertEqual(try audioCodec(of: wavURL), "pcm_s24le")
+        XCTAssertEqual(try temporaryConversionFiles(in: directory), [])
+    }
+
+    func testRewrapsAACSavedWithAnMP3Extension() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let mislabeledURL = directory.appendingPathComponent("Artist - Track.mp3")
+        try makeAudioFixture(at: mislabeledURL, codec: "aac", format: "adts", duration: "2")
+
+        let result = try await realToolsService(directory, finalPath: mislabeledURL.path)
+            .download(sourceURL: URL(string: "https://soundcloud.com/artist/track")!) { _ in }
+
+        let m4aURL = directory.appendingPathComponent("Artist - Track.m4a")
+        XCTAssertEqual(result.fileURL, m4aURL)
+        XCTAssertEqual(result.cdjSafety, .converted(.remux(fileExtension: "m4a")))
+        XCTAssertEqual(try audioCodec(of: m4aURL), "aac")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: mislabeledURL.path))
+    }
+
+    func testLeavesDownloadAloneWhenTheConvertedNameIsTaken() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let flacURL = directory.appendingPathComponent("Artist - Track.flac")
+        let existingURL = directory.appendingPathComponent("Artist - Track.wav")
+        try makeAudioFixture(at: flacURL, codec: "flac")
+        try Data("someone else's file".utf8).write(to: existingURL)
+
+        let result = try await realToolsService(directory, finalPath: flacURL.path)
+            .download(sourceURL: URL(string: "https://soundcloud.com/artist/track")!) { _ in }
+
+        XCTAssertEqual(result.fileURL, flacURL)
+        XCTAssertEqual(result.cdjSafety, .leftAsDownloaded(reason: "Artist - Track.wav already exists"))
+        XCTAssertEqual(try Data(contentsOf: existingURL), Data("someone else's file".utf8))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: flacURL.path))
+    }
+
+    func testLeavesFilesEveryDeckPlaysUntouched() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let m4aURL = directory.appendingPathComponent("Artist - Track.m4a")
+        try makeAudioFixture(at: m4aURL, codec: "aac")
+        let before = try Data(contentsOf: m4aURL)
+
+        let result = try await realToolsService(directory, finalPath: m4aURL.path)
+            .download(sourceURL: URL(string: "https://soundcloud.com/artist/track")!) { _ in }
+
+        XCTAssertEqual(result.fileURL, m4aURL)
+        XCTAssertEqual(result.cdjSafety, .alreadySafe)
+        XCTAssertEqual(try Data(contentsOf: m4aURL), before)
+    }
+
     func testReportsMissingYTDLPAsAnInstallableDependency() async throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -973,6 +1121,39 @@ final class DownloaderServiceTests: XCTestCase {
         return directory
     }
 
+    private func realToolsService(_ directory: URL, finalPath: String) -> DownloaderService {
+        DownloaderService(
+            outputDirectory: directory,
+            processRunner: DownloadThenRealToolsRunner(finalPath: finalPath),
+            toolResolver: { name in
+                ["ffprobe", "ffmpeg"].contains(name)
+                    ? URL(fileURLWithPath: "/opt/homebrew/bin/\(name)")
+                    : URL(fileURLWithPath: "/usr/bin/true")
+            }
+        )
+    }
+
+    private func audioCodec(of fileURL: URL) throws -> String {
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/ffprobe")
+        process.arguments = [
+            "-v", "error", "-select_streams", "a:0",
+            "-show_entries", "stream=codec_name", "-of", "default=nw=1:nk=1",
+            fileURL.path
+        ]
+        process.standardOutput = output
+        try process.run()
+        process.waitUntilExit()
+        return String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func temporaryConversionFiles(in directory: URL) throws -> [String] {
+        try FileManager.default.contentsOfDirectory(atPath: directory.path)
+            .filter { $0.hasPrefix(DownloadedTrackScanner.conversionTemporaryPrefix) }
+    }
+
     private var validQualityJSON: String {
         "{\"streams\":[{\"codec_type\":\"audio\",\"codec_name\":\"opus\",\"bit_rate\":\"192000\",\"sample_rate\":\"48000\"}],\"format\":{\"bit_rate\":\"192000\"}}"
     }
@@ -1003,6 +1184,8 @@ private final class StubProcessRunner: ProcessRunning, @unchecked Sendable {
 
     private var responses: [Response]
     private(set) var invocations: [Invocation] = []
+    /// Stands in for yt-dlp writing files while it runs.
+    var beforeFirstRun: (() -> Void)?
 
     init(responses: [Response]) {
         self.responses = responses
@@ -1013,7 +1196,13 @@ private final class StubProcessRunner: ProcessRunning, @unchecked Sendable {
         arguments: [String],
         onLine: @escaping @Sendable (String) -> Void
     ) async throws -> CommandResult {
+        if invocations.isEmpty { beforeFirstRun?() }
         invocations.append(.init(executable: executable, arguments: arguments))
+        // Calls past the scripted ones (the CDJ-safe conversion of a placeholder file) fail,
+        // which leaves the download as it was.
+        guard !responses.isEmpty else {
+            return CommandResult(exitCode: 1, output: "unscripted invocation")
+        }
         let response = responses.removeFirst()
         response.lines.forEach(onLine)
         return response.result
@@ -1184,15 +1373,64 @@ private final class FinalPathSwappingProcessRunner: ProcessRunning, @unchecked S
     }
 }
 
-private func makeAudioFixture(at fileURL: URL, codec: String) throws {
+/// Stands in for yt-dlp on the first call, then runs the real ffprobe/ffmpeg.
+private final class DownloadThenRealToolsRunner: ProcessRunning, @unchecked Sendable {
+    private let finalPath: String
+    private let processRunner = ProcessRunner()
+    private var invocationCount = 0
+
+    init(finalPath: String) {
+        self.finalPath = finalPath
+    }
+
+    func run(
+        executable: URL,
+        arguments: [String],
+        onLine: @escaping @Sendable (String) -> Void
+    ) async throws -> CommandResult {
+        try await run(executable: executable, arguments: arguments, standardInput: nil, onLine: onLine)
+    }
+
+    func run(
+        executable: URL,
+        arguments: [String],
+        standardInput: FileHandle?,
+        onLine: @escaping @Sendable (String) -> Void
+    ) async throws -> CommandResult {
+        invocationCount += 1
+        guard invocationCount > 1 else {
+            let output = "track-downloader:filepath:\(finalPath)\n"
+            onLine(output.trimmingCharacters(in: .newlines))
+            return CommandResult(exitCode: 0, output: output)
+        }
+        return try await processRunner.run(
+            executable: executable,
+            arguments: arguments,
+            standardInput: standardInput,
+            onLine: onLine
+        )
+    }
+
+    func cancel() {
+        processRunner.cancel()
+    }
+}
+
+private func makeAudioFixture(
+    at fileURL: URL,
+    codec: String,
+    format: String? = nil,
+    duration: String = "0.1"
+) throws {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg")
     process.arguments = [
         "-hide_banner", "-loglevel", "error", "-y",
         "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono",
-        "-t", "0.1", "-map", "0:a", "-c:a", codec,
-        fileURL.path
+        "-t", duration, "-map", "0:a", "-c:a", codec
     ]
+    + (format.map { ["-f", $0] } ?? [])
+    + [fileURL.path]
     let errorPipe = Pipe()
     process.standardError = errorPipe
     try process.run()

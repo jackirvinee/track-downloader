@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 
 from track_downloader.cli import build_parser
-from track_downloader.ytdlp_args import DownloadOptions, build_ytdlp_command
+from track_downloader.ytdlp_args import ORIGINAL_EXTENSION_ARGS, DownloadOptions, build_ytdlp_command
 
 
 class CliParserTests(unittest.TestCase):
@@ -20,10 +20,11 @@ class BuildYtDlpCommandTests(unittest.TestCase):
         )
 
         self.assertEqual(command[0], "yt-dlp")
-        self.assertIn("--format", command)
-        self.assertIn("bestaudio/best", command)
-        self.assertIn("--format-sort", command)
-        self.assertIn("acodec,abr,asr", command)
+        self.assertEqual(command[command.index("--format") + 1], "download/bestaudio/best")
+        self.assertEqual(command[command.index("--format-sort") + 1], "quality,abr,acodec,asr")
+        start = command.index(ORIGINAL_EXTENSION_ARGS[0])
+        self.assertEqual(tuple(command[start : start + len(ORIGINAL_EXTENSION_ARGS)]), ORIGINAL_EXTENSION_ARGS)
+        self.assertIn("(?i)^aif[cf]?$", ORIGINAL_EXTENSION_ARGS)
         self.assertIn("--extract-audio", command)
         self.assertIn("--audio-format", command)
         self.assertIn("best", command)

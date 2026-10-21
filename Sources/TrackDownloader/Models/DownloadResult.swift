@@ -4,7 +4,24 @@ import Foundation
 struct DownloadResult: Equatable {
     let fileURL: URL
     let metadata: TrackMetadata
+    /// Measured on the file as downloaded, before any CDJ-safe conversion, so a lossy source
+    /// converted to WAV still reports its real quality.
     let quality: AudioQuality
+    var cdjSafety: CDJSafeOutcome? = nil
+}
+
+enum CDJSafeOutcome: Equatable {
+    case alreadySafe
+    case converted(CDJSafeAction)
+    case leftAsDownloaded(reason: String)
+
+    var reportSuffix: String {
+        switch self {
+        case .alreadySafe: " | CDJ-safe"
+        case let .converted(action): " | CDJ-safe: \(action.summary)"
+        case let .leftAsDownloaded(reason): " | not CDJ-safe: \(reason)"
+        }
+    }
 }
 
 enum DownloadFailureKind: Equatable {

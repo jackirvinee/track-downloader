@@ -7,6 +7,8 @@ import re
 import stat
 from pathlib import Path
 
+from track_downloader.credential_scrub import scrub_info_json_files
+from track_downloader.cdj_safe import make_cdj_safe
 from track_downloader.cli import DEFAULT_OUTPUT_DIR, _missing_runtime_tools
 from track_downloader.quality import AUDIO_EXTENSIONS, find_newest_audio_file, inspect_audio_quality
 from track_downloader.search import open_higher_quality_searches, search_terms_from_audio_path
@@ -305,7 +307,9 @@ def run_download(command: list[str], output_dir: Path) -> tuple[str, Path | None
                         log_file.write(redact_transcript_line(line))
             return_code = process.wait()
     except OSError as exc:
+        scrub_info_json_files(output_dir, start_time)
         return str(exc), None, False, True
+    scrub_info_json_files(output_dir, start_time)
 
     if return_code != 0:
         return summarize_failed_download(output_lines, log_path), None, False, True
@@ -326,6 +330,10 @@ def run_download(command: list[str], output_dir: Path) -> tuple[str, Path | None
     except (OSError, subprocess.CalledProcessError, ValueError) as exc:
         return f"Downloaded {audio_file.name}, but quality inspection failed: {exc}", audio_file, False, False
 
+    # Quality above describes the source as downloaded; a lossy source converted to WAV is still lossy.
+    cdj_safety = make_cdj_safe(audio_file, output_dir)
+    audio_file = cdj_safety.path
+
     warning = ""
     if quality.kbps is not None and quality.kbps < 128:
         warning = "\n\nLow quality: probably not suitable for DJ use."
@@ -334,7 +342,8 @@ def run_download(command: list[str], output_dir: Path) -> tuple[str, Path | None
 
     offer_search = quality.verdict in {"low", "borderline", "unknown"}
     return (
-        f"Downloaded: {audio_file.name}\nQuality: {quality.summary()}{warning}\n\nSaved in: {output_dir}",
+        f"Downloaded: {audio_file.name}\nQuality: {quality.summary()}\nDecks: {cdj_safety.summary}{warning}"
+        f"\n\nSaved in: {output_dir}",
         audio_file,
         offer_search,
         False,

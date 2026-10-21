@@ -5,6 +5,27 @@ from pathlib import Path
 
 
 SUPPORTED_AUDIO_FORMATS = {"best", "m4a", "mp3", "opus", "flac", "wav", "aac", "alac", "vorbis"}
+# Mirrors YTDLPAudioSelectionPolicy.swift. The uploader's original ("download") always wins;
+# then the extractor's quality tier (SoundCloud Go+/160k AAC, YouTube non-DRC); then bitrate
+# before codec, so a 128 kbps MP3 beats a 96 kbps AAC.
+AUDIO_SELECTION_ARGS = ("--format", "download/bestaudio/best", "--format-sort", "quality,abr,acodec,asr")
+# Mirrors DownloadCommandBuilder.originalExtensionArguments. An uploader's original keeps the
+# extension of their file name; unless it's a lower-case one yt-dlp knows, --audio-format best
+# re-encodes PCM (.aif, .WAV) to a low-bitrate MP3 or, for .MP3/.M4A/.FLAC, overwrites the file
+# with itself on a case-insensitive disk. Normalising the extension first keeps the original intact.
+ORIGINAL_EXTENSION_ARGS = tuple(
+    arg
+    for pattern, replacement in (
+        ("(?i)^aif[cf]?$", "aiff"),
+        ("(?i)^(wave?|bwf)$", "wav"),
+        ("(?i)^mp3$", "mp3"),
+        ("(?i)^m4a$", "m4a"),
+        ("(?i)^flac$", "flac"),
+        ("(?i)^ogg$", "ogg"),
+        ("(?i)^opus$", "opus"),
+    )
+    for arg in ("--replace-in-metadata", "video:ext", pattern, replacement)
+)
 DEFAULT_OUTPUT_TEMPLATE = "%(extractor_key)s/%(uploader|Unknown Artist)s - %(title).180B [%(id)s].%(ext)s"
 
 
@@ -18,6 +39,8 @@ class DownloadOptions:
     archive_file: Path | None = None
     yt_dlp_bin: str = "yt-dlp"
     extra_ytdlp_args: list[str] = field(default_factory=list)
+    # yt-dlp appends the final path of every saved file here, for the post-download CDJ-safe step.
+    saved_paths_file: Path | None = None
 
 
 def build_ytdlp_command(urls: list[str], options: DownloadOptions) -> list[str]:
@@ -32,10 +55,8 @@ def build_ytdlp_command(urls: list[str], options: DownloadOptions) -> list[str]:
     output_dir = options.output_dir.expanduser()
     command = [
         options.yt_dlp_bin,
-        "--format",
-        "bestaudio/best",
-        "--format-sort",
-        "acodec,abr,asr",
+        *AUDIO_SELECTION_ARGS,
+        *ORIGINAL_EXTENSION_ARGS,
         "--extract-audio",
         "--audio-format",
         audio_format,
@@ -74,6 +95,11 @@ def build_ytdlp_command(urls: list[str], options: DownloadOptions) -> list[str]:
 
     if options.cookies_from_browser:
         command.extend(["--cookies-from-browser", options.cookies_from_browser])
+
+    if options.saved_paths_file is not None:
+        # The file name is itself an output template, so a literal % must be doubled.
+        record = str(options.saved_paths_file).replace("%", "%%")
+        command.extend(["--print-to-file", "after_move:%(filepath)s", record])
 
     command.extend(options.extra_ytdlp_args)
     command.extend(urls)

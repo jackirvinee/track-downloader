@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import shlex
 import shutil
 import subprocess
+import time
 import sys
+import tempfile
 from pathlib import Path
 
 from track_downloader import __version__
+from track_downloader.cdj_safe import make_cdj_safe
+from track_downloader.credential_scrub import scrub_info_json_files
 from track_downloader.url_validation import normalize_url
 from track_downloader.ytdlp_args import DownloadOptions, SUPPORTED_AUDIO_FORMATS, build_ytdlp_command
 
@@ -48,6 +53,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-archive",
         action="store_true",
         help="Do not write/use the per-library download archive.",
+    )
+    parser.add_argument(
+        "--no-cdj-safe",
+        dest="cdj_safe",
+        action="store_false",
+        help=(
+            "Keep files exactly as yt-dlp saved them. By default, anything some Pioneer CDJ/XDJ decks "
+            "can't load (FLAC, ALAC, Opus, HE-AAC, 32-bit float, 88.2/96 kHz, a wrong extension) is "
+            "rewritten as WAV or rewrapped so it plays on every deck."
+        ),
     )
     parser.add_argument(
         "--yt-dlp-bin",
@@ -108,7 +123,23 @@ def main(argv: list[str] | None = None) -> int:
         return 127
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    return subprocess.run(command, check=False).returncode
+    started_at = time.time()
+    if not args.cdj_safe:
+        returncode = subprocess.run(command, check=False).returncode
+        scrub_info_json_files(output_dir, started_at)
+        return returncode
+
+    with tempfile.TemporaryDirectory(prefix="track-downloader-") as record_dir:
+        saved_paths_file = Path(record_dir) / "saved-paths.txt"
+        command = build_ytdlp_command(urls, dataclasses.replace(options, saved_paths_file=saved_paths_file))
+        returncode = subprocess.run(command, check=False).returncode
+        scrub_info_json_files(output_dir, started_at)
+        saved = saved_paths_file.read_text(encoding="utf-8").splitlines() if saved_paths_file.exists() else []
+    for line in dict.fromkeys(line for line in saved if line):
+        outcome = make_cdj_safe(Path(line), output_dir)
+        stream = sys.stderr if outcome.status == "left_as_downloaded" else sys.stdout
+        print(f"[cdj-safe] {outcome.path.name}: {outcome.summary}", file=stream)
+    return returncode
 
 
 def _missing_runtime_tools(yt_dlp_bin: str) -> list[str]:
