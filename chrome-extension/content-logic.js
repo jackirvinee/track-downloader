@@ -6,8 +6,9 @@
 
   function normalizeText(value, maximumLength) {
     if (typeof value !== "string") return null;
-    const normalized = value.trim().replace(/\s+/gu, " ");
-    if (!normalized || normalized.length > maximumLength || /[\u0000-\u001f\u007f]/u.test(normalized)) return null;
+    // Match the native host: drop format (Cf) characters, refuse control (Cc) text.
+    const normalized = value.replace(/\p{Cf}/gu, "").trim().replace(/\s+/gu, " ");
+    if (!normalized || normalized.length > maximumLength || /\p{Cc}/u.test(normalized)) return null;
     return normalized;
   }
 

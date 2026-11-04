@@ -62,6 +62,51 @@ test("request builder canonicalizes a supported page and refuses an unrelated pa
   );
 });
 
+// The native host rejects the whole request when metadata contains any
+// character in CharacterSet.controlCharacters (Unicode Cc and Cf).
+const nativeHostRejectedCharacter = /[\p{Cc}\p{Cf}]/u;
+
+test("request builder removes format characters the native host would reject", async () => {
+  const { createRequest } = await import(new URL("request.js", extensionRoot));
+  const request = createRequest(
+    "https://www.youtube.com/watch?v=example",
+    {
+      title: "﻿Night 👨‍👩‍👧 Drive‎",
+      creator: "‫Example‬ Artist",
+      platform: "youtube",
+    },
+    1_723_651_200_000,
+    "01234567-89ab-cdef-0123-456789abcdef"
+  );
+
+  assert.equal(request.metadata.title, "Night 👨👩👧 Drive");
+  assert.equal(request.metadata.creator, "Example Artist");
+  assert.doesNotMatch(request.metadata.title, nativeHostRejectedCharacter);
+  assert.doesNotMatch(request.metadata.creator, nativeHostRejectedCharacter);
+  assert.equal(
+    createRequest("https://youtu.be/example", { title: "​", platform: "youtube" }).metadata.title,
+    null
+  );
+  assert.throws(
+    () => createRequest("https://youtu.be/example", { title: "Night\u0085Drive", platform: "youtube" }),
+    /title/
+  );
+});
+
+test("page logic removes format characters and drops C1 control text", async () => {
+  await import(new URL("content-logic.js", extensionRoot));
+  const { pageDetails } = globalThis.TrackDownloaderContentLogic;
+  const details = pageDetails({
+    url: "https://soundcloud.com/example/night-drive",
+    heading: "Night 👨‍👩‍👧 Drive‏",
+    creator: "Example\u0085Artist",
+  });
+
+  assert.equal(details.title, "Night 👨👩👧 Drive");
+  assert.equal(details.creator, null);
+  assert.doesNotMatch(details.title, nativeHostRejectedCharacter);
+});
+
 test("page logic limits injection to one supported item page and extracts bounded display text", async () => {
   await import(new URL("content-logic.js", extensionRoot));
   const { pageDetails } = globalThis.TrackDownloaderContentLogic;

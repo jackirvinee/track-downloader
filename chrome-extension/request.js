@@ -34,12 +34,15 @@ function isIndividualItemURL(parsed, platform) {
   return parts.length === 2 && !reserved.has(parts[0].toLowerCase());
 }
 
+// The native host rejects metadata containing Unicode control (Cc) or format
+// (Cf) characters. Format characters such as the zero-width joiner in emoji
+// and bidi marks are common in page titles, so remove them instead of failing.
 function boundedText(value, maximumLength, fieldName) {
   if (value == null || value === "") return null;
-  if (typeof value !== "string" || value.length > maximumLength || /[\u0000-\u001f\u007f]/u.test(value)) {
+  if (typeof value !== "string" || value.length > maximumLength || /\p{Cc}/u.test(value)) {
     throw new Error(`Page ${fieldName} is not safe to queue.`);
   }
-  const normalized = value.trim().replace(/\s+/gu, " ");
+  const normalized = value.replace(/\p{Cf}/gu, "").trim().replace(/\s+/gu, " ");
   return normalized || null;
 }
 
