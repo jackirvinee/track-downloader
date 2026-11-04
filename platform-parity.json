@@ -63,7 +63,9 @@
           "Sources/TrackDownloader/Views/DownloadProgressView.swift",
           "Sources/TrackDownloader/Views/VUProgressMeter.swift",
           "Sources/TrackDownloaderCore/VUProgressMeterRules.swift",
-          "tests/TrackDownloaderCoreTests/VUProgressMeterRulesTests.swift"
+          "tests/TrackDownloaderCoreTests/VUProgressMeterRulesTests.swift",
+          "Sources/TrackDownloader/Services/ProcessRunner.swift",
+          "tests/TrackDownloaderTests/ProcessRunnerTests.swift"
         ]
       },
       "windows": {

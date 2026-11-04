@@ -21,6 +21,9 @@ protocol ProcessRunning: AnyObject, Sendable {
 }
 
 final class ProcessRunner: ProcessRunning, @unchecked Sendable {
+    /// How long an interrupted child gets to clean up before it is terminated.
+    static let interruptGracePeriod: TimeInterval = 3
+
     private let stateLock = NSLock()
     private var activeProcess: Process?
 
@@ -43,40 +46,69 @@ final class ProcessRunner: ProcessRunning, @unchecked Sendable {
         standardInput: FileHandle?,
         onLine: @escaping @Sendable (String) -> Void
     ) async throws -> CommandResult {
-        try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            let pipe = Pipe()
-            let fileHandle = pipe.fileHandleForReading
-            let collector = OutputCollector(onLine: onLine)
-            let outputReader = ProcessOutputReader(fileHandle: fileHandle, collector: collector)
+        let launch = ProcessLaunch()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let process = Process()
+                let pipe = Pipe()
+                let fileHandle = pipe.fileHandleForReading
+                let collector = OutputCollector(onLine: onLine)
+                let outputReader = ProcessOutputReader(fileHandle: fileHandle, collector: collector)
 
-            process.executableURL = executable
-            process.arguments = arguments
-            process.standardInput = standardInput
-            process.standardOutput = pipe
-            process.standardError = pipe
+                process.executableURL = executable
+                process.arguments = arguments
+                process.standardInput = standardInput
+                process.standardOutput = pipe
+                process.standardError = pipe
 
-            outputReader.start()
+                outputReader.start()
 
-            process.terminationHandler = { [self] terminatedProcess in
-                outputReader.finish { output in
-                    self.clearActiveProcess(terminatedProcess)
-                    continuation.resume(
-                        returning: CommandResult(
-                            exitCode: terminatedProcess.terminationStatus,
-                            output: String(decoding: output, as: UTF8.self)
+                process.terminationHandler = { [self] terminatedProcess in
+                    outputReader.finish { output in
+                        self.clearActiveProcess(terminatedProcess)
+                        continuation.resume(
+                            returning: CommandResult(
+                                exitCode: terminatedProcess.terminationStatus,
+                                output: String(decoding: output, as: UTF8.self)
+                            )
                         )
-                    )
+                    }
+                }
+
+                // Launch while holding the lock so a concurrent cancellation either
+                // marks this launch cancelled before it starts or finds a process
+                // that is already running; it can no longer fall between the two.
+                stateLock.lock()
+                if launch.isCancelled {
+                    stateLock.unlock()
+                    outputReader.close()
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                activeProcess = process
+                launch.process = process
+                var launchError: Error?
+                do {
+                    try process.run()
+                } catch {
+                    launchError = error
+                }
+                stateLock.unlock()
+
+                if let launchError {
+                    outputReader.close()
+                    clearActiveProcess(process)
+                    continuation.resume(throwing: launchError)
                 }
             }
+        } onCancel: {
+            self.stateLock.lock()
+            launch.isCancelled = true
+            let process = launch.process
+            self.stateLock.unlock()
 
-            setActiveProcess(process)
-            do {
-                try process.run()
-            } catch {
-                outputReader.close()
-                clearActiveProcess(process)
-                continuation.resume(throwing: error)
+            if let process {
+                Self.stop(process)
             }
         }
     }
@@ -86,8 +118,21 @@ final class ProcessRunner: ProcessRunning, @unchecked Sendable {
         let process = activeProcess
         stateLock.unlock()
 
-        if process?.isRunning == true {
-            process?.terminate()
+        if let process {
+            Self.stop(process)
+        }
+    }
+
+    /// Interrupts first, like Control-C, so yt-dlp can stop the ffmpeg child it
+    /// started; a plain terminate kills yt-dlp and leaves ffmpeg running.
+    /// Terminates if the child is still running after the grace period.
+    private static func stop(_ process: Process) {
+        guard process.isRunning else { return }
+        process.interrupt()
+        DispatchQueue.global().asyncAfter(deadline: .now() + interruptGracePeriod) { [weak process] in
+            if process?.isRunning == true {
+                process?.terminate()
+            }
         }
     }
 
@@ -109,12 +154,6 @@ final class ProcessRunner: ProcessRunning, @unchecked Sendable {
         )
     }
 
-    private func setActiveProcess(_ process: Process) {
-        stateLock.lock()
-        activeProcess = process
-        stateLock.unlock()
-    }
-
     private func clearActiveProcess(_ process: Process) {
         stateLock.lock()
         if activeProcess === process {
@@ -122,6 +161,12 @@ final class ProcessRunner: ProcessRunning, @unchecked Sendable {
         }
         stateLock.unlock()
     }
+}
+
+/// Per-run cancellation state, guarded by `ProcessRunner.stateLock`.
+private final class ProcessLaunch: @unchecked Sendable {
+    var isCancelled = false
+    var process: Process?
 }
 
 private final class ProcessOutputReader: @unchecked Sendable {

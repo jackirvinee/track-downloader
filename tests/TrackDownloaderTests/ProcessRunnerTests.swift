@@ -74,6 +74,79 @@ final class ProcessRunnerTests: XCTestCase {
         }
     }
 
+    func testCancellationBeforeLaunchNeverStartsTheChild() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ProcessRunnerTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let marker = directory.appendingPathComponent("started")
+        let runner = ProcessRunner()
+
+        let task = Task {
+            // Cancel this task deterministically before the runner launches.
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await runner.run(
+                executable: URL(fileURLWithPath: "/usr/bin/touch"),
+                arguments: [marker.path],
+                onLine: { _ in }
+            )
+        }
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected a cancelled run to throw before launching.")
+        } catch is CancellationError {
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    func testTaskCancellationStopsTheRunningChild() async throws {
+        let runner = ProcessRunner()
+        let recorder = LineRecorder()
+        let startedAt = Date()
+        let task = Task {
+            try await runner.run(
+                executable: URL(fileURLWithPath: "/bin/sh"),
+                arguments: ["-c", "printf 'ready\\n'; exec sleep 10"],
+                onLine: { recorder.record($0) }
+            )
+        }
+
+        XCTAssertEqual(recorder.waitForLine(timeout: 1), .success)
+        task.cancel()
+
+        let result = try await task.value
+        XCTAssertLessThan(Date().timeIntervalSince(startedAt), 2)
+        XCTAssertNotEqual(result.exitCode, 0)
+    }
+
+    func testCancelInterruptsSoTheChildCanStopItsOwnSubprocess() async throws {
+        // Like yt-dlp with ffmpeg: the child only stops its subprocess when it is
+        // interrupted. A plain terminate would leave the `sleep` running.
+        let script = #"trap 'kill "$child"; wait "$child"; exit 130' INT; "#
+            + #"sleep 30 >/dev/null 2>&1 & child=$!; printf "ready %s\n" "$child"; wait "$child""#
+        let runner = ProcessRunner()
+        let recorder = LineRecorder()
+        let task = Task {
+            try await runner.run(
+                executable: URL(fileURLWithPath: "/bin/sh"),
+                arguments: ["-c", script],
+                onLine: { recorder.record($0) }
+            )
+        }
+
+        XCTAssertEqual(recorder.waitForLine(timeout: 1), .success)
+        let grandchild = try XCTUnwrap(
+            recorder.lines.first.flatMap { Int32($0.split(separator: " ").last ?? "") }
+        )
+        defer { _ = kill(grandchild, SIGKILL) }
+        runner.cancel()
+
+        let result = try await task.value
+        XCTAssertEqual(result.exitCode, 130)
+        XCTAssertEqual(kill(grandchild, 0), -1, "The child's own subprocess should have been stopped.")
+    }
+
     func testPassesProvidedFileHandleToChildStandardInput() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ProcessRunnerTests-\(UUID().uuidString)", isDirectory: true)
