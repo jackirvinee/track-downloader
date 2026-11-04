@@ -2,7 +2,7 @@ namespace TrackDownloader.Windows.Core;
 
 public static class YtDlpArguments
 {
-    private const string OutputTemplate = "%(extractor_key)s/%(uploader|Unknown Artist)s - %(title).180B [%(id)s].%(ext)s";
+    private const string OutputTemplate = "%(extractor_key)s/%(uploader|Unknown Artist).36B - %(title).180B [%(id)s].%(ext)s";
 
     public static IReadOnlyList<string> Create(Uri url, string outputDirectory)
     {

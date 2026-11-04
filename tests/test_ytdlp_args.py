@@ -1,8 +1,12 @@
+import re
 import unittest
 from pathlib import Path
 
 from track_downloader.cli import build_parser
-from track_downloader.ytdlp_args import DownloadOptions, build_ytdlp_command
+from track_downloader.ytdlp_args import DEFAULT_OUTPUT_TEMPLATE, DownloadOptions, build_ytdlp_command
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class CliParserTests(unittest.TestCase):
@@ -10,6 +14,23 @@ class CliParserTests(unittest.TestCase):
         args = build_parser().parse_args(["https://youtu.be/example"])
 
         self.assertEqual(args.output_dir, Path("~/Downloads/Track Downloader"))
+
+
+class OutputTemplateTests(unittest.TestCase):
+    def test_uploader_and_title_are_byte_bounded_so_names_fit_macos_limits(self):
+        # 36 + 180 bytes leaves room for the id, extension, and yt-dlp's longest
+        # working names (.part-Frag<n>, .info.json) within APFS's 255-byte limit.
+        self.assertIn("%(uploader|Unknown Artist).36B - ", DEFAULT_OUTPUT_TEMPLATE)
+        self.assertIn(" - %(title).180B [", DEFAULT_OUTPUT_TEMPLATE)
+
+    def test_macos_and_windows_use_the_same_output_template(self):
+        sources = {
+            "macOS": REPO_ROOT / "Sources/TrackDownloaderCore/DownloadCommandBuilder.swift",
+            "Windows": REPO_ROOT / "windows/TrackDownloader.Windows.Core/YtDlpArguments.cs",
+        }
+        for platform, path in sources.items():
+            templates = re.findall(r'"(%\(extractor_key\)s/[^"]+)"', path.read_text(encoding="utf-8"))
+            self.assertEqual(templates, [DEFAULT_OUTPUT_TEMPLATE], platform)
 
 
 class BuildYtDlpCommandTests(unittest.TestCase):

@@ -2,7 +2,7 @@ import Foundation
 
 public enum DownloadCommandBuilder {
     public static let outputTemplate =
-        "%(extractor_key)s/%(uploader|Unknown Artist)s - %(title).180B [%(id)s].%(ext)s"
+        "%(extractor_key)s/%(uploader|Unknown Artist).36B - %(title).180B [%(id)s].%(ext)s"
 
     public static func arguments(
         sourceURL: URL,

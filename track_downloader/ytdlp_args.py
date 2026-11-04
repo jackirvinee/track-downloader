@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 SUPPORTED_AUDIO_FORMATS = {"best", "m4a", "mp3", "opus", "flac", "wav", "aac", "alac", "vorbis"}
-DEFAULT_OUTPUT_TEMPLATE = "%(extractor_key)s/%(uploader|Unknown Artist)s - %(title).180B [%(id)s].%(ext)s"
+DEFAULT_OUTPUT_TEMPLATE = "%(extractor_key)s/%(uploader|Unknown Artist).36B - %(title).180B [%(id)s].%(ext)s"
 
 
 @dataclass(frozen=True)

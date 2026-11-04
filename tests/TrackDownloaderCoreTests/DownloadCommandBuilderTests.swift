@@ -14,6 +14,22 @@ final class DownloadCommandBuilderTests: XCTestCase {
         XCTAssertFalse(command.contains("--cookies-from-browser"))
     }
 
+    func testOutputTemplateBoundsUploaderAndTitleBytes() {
+        let command = DownloadCommandBuilder.arguments(
+            sourceURL: URL(string: "https://youtu.be/example")!,
+            outputDirectory: URL(fileURLWithPath: "/tmp/TrackDownloader Output", isDirectory: true)
+        )
+
+        // Keeps yt-dlp's longest working names under APFS's 255-byte filename limit.
+        XCTAssertEqual(
+            DownloadCommandBuilder.outputTemplate,
+            "%(extractor_key)s/%(uploader|Unknown Artist).36B - %(title).180B [%(id)s].%(ext)s"
+        )
+        let outputIndex = command.firstIndex(of: "--output")
+        XCTAssertNotNil(outputIndex)
+        XCTAssertEqual(outputIndex.map { command[$0 + 1] }, DownloadCommandBuilder.outputTemplate)
+    }
+
     func testBuildsBestQualityMetadataPreservingCommand() {
         let output = URL(fileURLWithPath: "/tmp/TrackDownloader Output", isDirectory: true)
         let source = URL(string: "https://soundcloud.com/artist/track")!

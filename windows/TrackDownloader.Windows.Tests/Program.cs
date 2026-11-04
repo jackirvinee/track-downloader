@@ -123,6 +123,9 @@ var tests = new (string Name, Action Run)[]
         AssertEqual("bestaudio/best", arguments[5]);
         AssertEqual("deno", ValueAfter("--js-runtimes", arguments));
         AssertEqual("ejs:github", ValueAfter("--remote-components", arguments));
+        AssertEqual(
+            "%(extractor_key)s/%(uploader|Unknown Artist).36B - %(title).180B [%(id)s].%(ext)s",
+            ValueAfter("--output", arguments));
         AssertEqual("--no-playlist", arguments[^2]);
         AssertEqual("https://soundcloud.com/artist/track", arguments[^1]);
         AssertFalse(arguments.Any(argument => argument.Contains("cmd.exe", StringComparison.OrdinalIgnoreCase)));
