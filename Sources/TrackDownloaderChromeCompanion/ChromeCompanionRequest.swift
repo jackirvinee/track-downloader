@@ -39,7 +39,7 @@ public struct ChromeCompanionMetadata: Codable, Equatable, Sendable {
     private static func normalized(_ value: String?, maximumLength: Int) throws -> String? {
         guard let value else { return nil }
         guard value.count <= maximumLength,
-              !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+              !ChromeCompanionText.containsDisallowedCharacter(value) else {
             throw ChromeCompanionRequestError.invalidMetadata
         }
         let normalized = value.split(whereSeparator: \.isWhitespace).joined(separator: " ")
@@ -243,6 +243,21 @@ public struct ChromeCompanionRequest: Codable, Equatable, Sendable {
     private static func isValidPersistedText(_ value: String, maximumLength: Int) -> Bool {
         !value.isEmpty
             && value.count <= maximumLength
-            && !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+            && !ChromeCompanionText.containsDisallowedCharacter(value)
+    }
+}
+
+enum ChromeCompanionText {
+    /// Zero-width non-joiner and joiner are format characters that belong to
+    /// ordinary text: emoji sequences such as 👨‍👩‍👧, and Persian or Indic words.
+    private static let allowedFormatCharacters: Set<Unicode.Scalar> = ["\u{200C}", "\u{200D}"]
+
+    /// Control (Cc) and format (Cf) characters other than the two joiners,
+    /// for example bidi overrides that can disguise displayed text.
+    static func containsDisallowedCharacter(_ value: String) -> Bool {
+        value.unicodeScalars.contains { scalar in
+            CharacterSet.controlCharacters.contains(scalar)
+                && !allowedFormatCharacters.contains(scalar)
+        }
     }
 }

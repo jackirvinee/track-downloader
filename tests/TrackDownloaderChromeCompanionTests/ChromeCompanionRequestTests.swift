@@ -52,6 +52,23 @@ final class ChromeCompanionRequestTests: XCTestCase {
         XCTAssertThrowsError(try ChromeCompanionRequest.decode(mismatchedPlatform, now: Date(timeIntervalSince1970: 1_723_651_200)))
     }
 
+    func testKeepsEmojiJoinersButRejectsBidiOverridesInDisplayMetadata() throws {
+        let joinedEmoji = Data("""
+        {"version":2,"requestId":"01234567-89AB-CDEF-0123-456789ABCDEF","action":"enqueueDownload","url":"https://youtu.be/example","issuedAtMs":1723651200000,"metadata":{"title":"Night 👨\\u200D👩\\u200D👧 Drive","creator":"\\u0645\\u06CC\\u200C\\u062E\\u0648\\u0627\\u0645","platform":"youtube"}}
+        """.utf8)
+        let bidiOverride = Data("""
+        {"version":2,"requestId":"01234567-89AB-CDEF-0123-456789ABCDEF","action":"enqueueDownload","url":"https://youtu.be/example","issuedAtMs":1723651200000,"metadata":{"title":"Night \\u202EevirD","creator":null,"platform":"youtube"}}
+        """.utf8)
+        let now = Date(timeIntervalSince1970: 1_723_651_200)
+
+        let request = try ChromeCompanionRequest.decode(joinedEmoji, now: now)
+
+        XCTAssertEqual(request.metadata?.title, "Night 👨\u{200D}👩\u{200D}👧 Drive")
+        XCTAssertEqual(request.metadata?.creator, "\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0645}")
+        XCTAssertTrue(request.isValidForQueuePersistence())
+        XCTAssertThrowsError(try ChromeCompanionRequest.decode(bidiOverride, now: now))
+    }
+
     func testRejectsSupportedHostsThatAreNotIndividualTrackPages() {
         let youtubeSearch = Data("""
         {"version":1,"requestId":"01234567-89AB-CDEF-0123-456789ABCDEF","action":"enqueueDownload","url":"https://www.youtube.com/results?search_query=night","issuedAtMs":1723651200000}

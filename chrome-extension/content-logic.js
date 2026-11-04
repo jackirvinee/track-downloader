@@ -6,8 +6,9 @@
 
   function normalizeText(value, maximumLength) {
     if (typeof value !== "string") return null;
-    // Match the native host: drop format (Cf) characters, refuse control (Cc) text.
-    const normalized = value.replace(/\p{Cf}/gu, "").trim().replace(/\s+/gu, " ");
+    // Match the native host: drop format (Cf) characters except the zero-width
+    // non-joiner and joiner used by emoji and some scripts; refuse control (Cc) text.
+    const normalized = value.replace(/(?![\u200C\u200D])\p{Cf}/gu, "").trim().replace(/\s+/gu, " ");
     if (!normalized || normalized.length > maximumLength || /\p{Cc}/u.test(normalized)) return null;
     return normalized;
   }

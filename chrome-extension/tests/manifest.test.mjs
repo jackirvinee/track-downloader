@@ -62,11 +62,12 @@ test("request builder canonicalizes a supported page and refuses an unrelated pa
   );
 });
 
-// The native host rejects the whole request when metadata contains any
-// character in CharacterSet.controlCharacters (Unicode Cc and Cf).
-const nativeHostRejectedCharacter = /[\p{Cc}\p{Cf}]/u;
+// The native host rejects the whole request when metadata contains a control
+// (Cc) or format (Cf) character other than the zero-width non-joiner and joiner.
+const nativeHostRejectedCharacter = /(?![\u200C\u200D])[\p{Cc}\p{Cf}]/u;
+const familyEmoji = "👨\u200D👩\u200D👧";
 
-test("request builder removes format characters the native host would reject", async () => {
+test("request builder keeps emoji joiners and removes other format characters", async () => {
   const { createRequest } = await import(new URL("request.js", extensionRoot));
   const request = createRequest(
     "https://www.youtube.com/watch?v=example",
@@ -79,7 +80,7 @@ test("request builder removes format characters the native host would reject", a
     "01234567-89ab-cdef-0123-456789abcdef"
   );
 
-  assert.equal(request.metadata.title, "Night 👨👩👧 Drive");
+  assert.equal(request.metadata.title, `Night ${familyEmoji} Drive`);
   assert.equal(request.metadata.creator, "Example Artist");
   assert.doesNotMatch(request.metadata.title, nativeHostRejectedCharacter);
   assert.doesNotMatch(request.metadata.creator, nativeHostRejectedCharacter);
@@ -93,7 +94,7 @@ test("request builder removes format characters the native host would reject", a
   );
 });
 
-test("page logic removes format characters and drops C1 control text", async () => {
+test("page logic keeps emoji joiners, removes other format characters, and drops C1 control text", async () => {
   await import(new URL("content-logic.js", extensionRoot));
   const { pageDetails } = globalThis.TrackDownloaderContentLogic;
   const details = pageDetails({
@@ -102,7 +103,7 @@ test("page logic removes format characters and drops C1 control text", async () 
     creator: "Example\u0085Artist",
   });
 
-  assert.equal(details.title, "Night 👨👩👧 Drive");
+  assert.equal(details.title, `Night ${familyEmoji} Drive`);
   assert.equal(details.creator, null);
   assert.doesNotMatch(details.title, nativeHostRejectedCharacter);
 });
