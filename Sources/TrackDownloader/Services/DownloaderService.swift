@@ -115,12 +115,7 @@ struct DownloaderService {
         } catch let failure as DownloadFailurePresentation {
             throw failure
         } catch {
-            throw DownloadFailurePresentation(
-                kind: .outputFileMissing,
-                title: "No downloaded file found",
-                message: "The download finished, but no audio file was reported.",
-                technicalDetails: nil
-            )
+            throw reportedFileUnavailable(fileURL, error: error)
         }
         let report = "\(timestamp()) \(fileURL.lastPathComponent) | \(quality.reportLine)\n"
         try append(
@@ -187,6 +182,24 @@ struct DownloaderService {
 
     private func installCommand(for tool: String) -> String {
         tool == "deno" ? "brew install deno" : "brew install yt-dlp ffmpeg"
+    }
+
+    /// yt-dlp reported a file, but it could not be opened for measurement.
+    private func reportedFileUnavailable(_ fileURL: URL, error: Error) -> DownloadFailurePresentation {
+        if (error as? POSIXError)?.code == .ENOENT {
+            return DownloadFailurePresentation(
+                kind: .outputFileMissing,
+                title: "No downloaded file found",
+                message: "yt-dlp reported \(fileURL.lastPathComponent), but it is no longer in the output folder.",
+                technicalDetails: nil
+            )
+        }
+        return DownloadFailurePresentation(
+            kind: .qualityUnavailable,
+            title: "Downloaded file could not be opened",
+            message: "Track Downloader could not safely open \(fileURL.lastPathComponent) to measure its quality.",
+            technicalDetails: error.localizedDescription
+        )
     }
 
     private func qualityUnavailable(details: String?) -> DownloadFailurePresentation {

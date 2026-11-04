@@ -709,6 +709,36 @@ final class DownloaderServiceTests: XCTestCase {
         XCTAssertEqual(failure.title, "No downloaded file found")
     }
 
+    func testReportsReportedPathThatIsNotARegularFileAsUnopenable() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let directoryWithAudioName = directory.appendingPathComponent("Artist - Track.opus", isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryWithAudioName, withIntermediateDirectories: true)
+        let service = DownloaderService(
+            outputDirectory: directory,
+            processRunner: StubProcessRunner(responses: [
+                .init(
+                    lines: ["track-downloader:filepath:\(directoryWithAudioName.path)"],
+                    result: .init(
+                        exitCode: 0,
+                        output: "track-downloader:filepath:\(directoryWithAudioName.path)\n"
+                    )
+                )
+            ]),
+            toolResolver: { _ in URL(fileURLWithPath: "/usr/bin/true") }
+        )
+
+        let failure = try await downloadFailure(from: service)
+
+        XCTAssertEqual(failure.kind, .qualityUnavailable)
+        XCTAssertEqual(failure.title, "Downloaded file could not be opened")
+        XCTAssertEqual(
+            failure.message,
+            "Track Downloader could not safely open Artist - Track.opus to measure its quality."
+        )
+        XCTAssertNotNil(failure.technicalDetails)
+    }
+
     func testRejectsExtractorReportedFinalPathOutsideOutputDirectory() async throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
