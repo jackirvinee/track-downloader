@@ -164,6 +164,16 @@ var tests = new (string Name, Action Run)[]
         AssertAlmostEqual(0, DownloadProgressParser.Parse("track-downloader:progress:-5%").FractionCompleted ?? -1);
         AssertAlmostEqual(1, DownloadProgressParser.Parse("track-downloader:progress:150%").FractionCompleted ?? -1);
     }),
+    ("recognizes yt-dlp archive and existing-file skips", () =>
+    {
+        AssertTrue(ArchiveSkipDetector.IsArchiveSkip("[download] abc123: Night Drive has already been recorded in the archive"));
+        AssertTrue(ArchiveSkipDetector.IsArchiveSkip("[download] abc123: has already been recorded in the archive"));
+        AssertTrue(ArchiveSkipDetector.IsArchiveSkip("[download] Artist - Track [abc123].opus has already been downloaded"));
+        AssertFalse(ArchiveSkipDetector.IsArchiveSkip("[download] Destination: A track has already been downloaded.webm"));
+        AssertFalse(ArchiveSkipDetector.IsArchiveSkip("[download] Destination: A track has already been recorded in the archive"));
+        AssertFalse(ArchiveSkipDetector.IsArchiveSkip("[info] This item has already been downloaded by another application"));
+        AssertFalse(ArchiveSkipDetector.IsArchiveSkip("track-downloader:progress:100.0%"));
+    }),
     ("opens an existing output folder through Explorer without a shell", () =>
     {
         using var directory = new TestDirectory();

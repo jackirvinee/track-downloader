@@ -54,10 +54,12 @@ public partial class MainWindow : Window
         SetRunning(true);
         try
         {
-            await RunDownloadAsync(
+            var alreadyDownloaded = await RunDownloadAsync(
                 DownloadProcess.CreateStartInfo(tools, url, OutputDirectory, runtimePath),
                 activeDownload.Token);
-            SetStatus("Download finished. Use Show files to open the output folder.");
+            SetStatus(alreadyDownloaded
+                ? "Previously downloaded. No new file was created; this link appears in Track Downloader's download history."
+                : "Download finished. Use Show files to open the output folder.");
         }
         catch (OperationCanceledException)
         {
@@ -75,7 +77,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RunDownloadAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken)
+    /// <returns>True when yt-dlp skipped the item because it was already downloaded.</returns>
+    private async Task<bool> RunDownloadAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken)
     {
         using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Unable to start the downloader.");
         using var cancellationRegistration = cancellationToken.Register(() =>
@@ -100,12 +103,17 @@ public partial class MainWindow : Window
         {
             throw new InvalidOperationException("Downloader failed.");
         }
+
+        return await standardOutput;
     }
 
-    private async Task ReadProgressAsync(StreamReader reader)
+    /// <returns>True when an archive or existing-file skip was reported.</returns>
+    private async Task<bool> ReadProgressAsync(StreamReader reader)
     {
+        var sawArchiveSkip = false;
         while (await reader.ReadLineAsync() is { } line)
         {
+            sawArchiveSkip |= ArchiveSkipDetector.IsArchiveSkip(line);
             var progress = DownloadProgressParser.Parse(line).FractionCompleted;
             if (progress is not null)
             {
@@ -116,6 +124,8 @@ public partial class MainWindow : Window
                 });
             }
         }
+
+        return sawArchiveSkip;
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs eventArgs)
