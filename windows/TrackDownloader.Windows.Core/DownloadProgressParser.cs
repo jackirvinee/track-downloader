@@ -15,7 +15,8 @@ public static class DownloadProgressParser
                 line[Prefix.Length..].Trim().TrimEnd('%'),
                 NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign,
                 CultureInfo.InvariantCulture,
-                out var percent))
+                out var percent) ||
+            !double.IsFinite(percent))
         {
             return new DownloadProgress(null);
         }

@@ -156,6 +156,14 @@ var tests = new (string Name, Action Run)[]
         AssertAlmostEqual(0.376, DownloadProgressParser.Parse("track-downloader:progress:37.6%").FractionCompleted ?? -1);
         AssertTrue(DownloadProgressParser.Parse("[download] 37.6% of 12MiB").FractionCompleted is null);
     }),
+    ("ignores non-finite progress values", () =>
+    {
+        AssertTrue(DownloadProgressParser.Parse("track-downloader:progress:NaN%").FractionCompleted is null);
+        AssertTrue(DownloadProgressParser.Parse("track-downloader:progress:Infinity%").FractionCompleted is null);
+        AssertTrue(DownloadProgressParser.Parse("track-downloader:progress:-Infinity%").FractionCompleted is null);
+        AssertAlmostEqual(0, DownloadProgressParser.Parse("track-downloader:progress:-5%").FractionCompleted ?? -1);
+        AssertAlmostEqual(1, DownloadProgressParser.Parse("track-downloader:progress:150%").FractionCompleted ?? -1);
+    }),
     ("opens an existing output folder through Explorer without a shell", () =>
     {
         using var directory = new TestDirectory();
