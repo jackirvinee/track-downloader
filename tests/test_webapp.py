@@ -53,6 +53,24 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(payload["status"], "idle")
         self.assertIsNone(payload["audioFile"])
 
+    def test_unexpected_job_failure_ends_the_running_state(self):
+        server = TrackDownloaderServer(("127.0.0.1", 0))
+        self.addCleanup(server.server_close)
+        server.state = JobState(status="running", message="Downloading...")
+        handler = TrackDownloaderRequestHandler.__new__(TrackDownloaderRequestHandler)
+        handler.server = server
+
+        with (
+            patch("track_downloader.webapp.run_download", side_effect=RuntimeError("scan failed")),
+            patch("track_downloader.app.append_quality_report") as append_report,
+        ):
+            handler.run_job(["yt-dlp", "https://www.youtube.com/watch?v=fixture"])
+
+        self.assertEqual(server.state.status, "error")
+        self.assertTrue(server.state.is_error)
+        self.assertIn("scan failed", server.state.message)
+        append_report.assert_called_once()
+
 
 class WebAppSecurityTests(unittest.TestCase):
     def setUp(self):

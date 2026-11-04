@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from track_downloader.app import build_gui_download_command, normalize_url, run_download
+from track_downloader.app import build_gui_download_command, normalize_url, redact_transcript_line, run_download
 from track_downloader.cli import DEFAULT_OUTPUT_DIR, _missing_runtime_tools
 from track_downloader.search import open_higher_quality_searches, search_terms_from_audio_path
 
@@ -411,7 +411,13 @@ class TrackDownloaderRequestHandler(BaseHTTPRequestHandler):
 
     def run_job(self, command: list[str]) -> None:
         output_dir = DEFAULT_OUTPUT_DIR.expanduser()
-        message, audio_file, offer_search, is_error = run_download(command, output_dir)
+        try:
+            message, audio_file, offer_search, is_error = run_download(command, output_dir)
+        except Exception as exc:
+            # Never leave the job stuck in "running": that would block every
+            # later download with 409 until the app is restarted.
+            message = redact_transcript_line(f"Download failed unexpectedly: {exc}")
+            audio_file, offer_search, is_error = None, False, True
         try:
             from track_downloader.app import append_quality_report
 
