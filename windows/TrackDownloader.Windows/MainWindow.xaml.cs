@@ -133,6 +133,22 @@ public partial class MainWindow : Window
         activeDownload?.Cancel();
     }
 
+    protected override void OnClosed(EventArgs e)
+    {
+        // Closing the window ends the app; stop yt-dlp and its ffmpeg children
+        // instead of leaving them running invisibly.
+        try
+        {
+            activeDownload?.Cancel();
+        }
+        catch (AggregateException)
+        {
+            // The process may already be exiting; closing must not fail.
+        }
+
+        base.OnClosed(e);
+    }
+
     private void ShowFilesButton_Click(object sender, RoutedEventArgs eventArgs)
     {
         try
