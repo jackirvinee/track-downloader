@@ -13,6 +13,11 @@ var tests = new (string Name, Action Run)[]
         AssertThrows(() => UrlPolicy.Validate("https://youtube.example/watch?v=abc"));
         AssertThrows(() => UrlPolicy.Validate("file:///tmp/audio"));
     }),
+    ("rejects credentials embedded in the URL", () =>
+    {
+        AssertThrows(() => UrlPolicy.Validate("https://user:secret@www.youtube.com/watch?v=abc"));
+        AssertThrows(() => UrlPolicy.Validate("https://user@soundcloud.com/artist/track"));
+    }),
     ("prefers app-adjacent runtime tools", () =>
     {
         using var directory = new TestDirectory();

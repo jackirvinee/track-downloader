@@ -14,6 +14,7 @@ public static class UrlPolicy
         if (string.IsNullOrWhiteSpace(value) ||
             !Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri) ||
             uri.Scheme != Uri.UriSchemeHttps ||
+            uri.UserInfo.Length > 0 ||
             !IsAllowedHost(uri.Host))
         {
             throw new ArgumentException("Paste a YouTube or SoundCloud HTTPS link.", nameof(value));
