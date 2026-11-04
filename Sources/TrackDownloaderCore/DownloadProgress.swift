@@ -47,7 +47,10 @@ public enum YTDLPOutputParser {
 
     private static func parseProgress(_ record: String) -> YTDLPOutputEvent? {
         let fields = record.split(separator: "|", maxSplits: 2, omittingEmptySubsequences: false)
-        guard fields.count == 3, let percent = percent(from: String(fields[0])) else {
+        // Double("nan") and Double("inf") parse, and min/max pass NaN through.
+        guard fields.count == 3,
+              let percent = percent(from: String(fields[0])),
+              percent.isFinite else {
             return nil
         }
 

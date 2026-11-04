@@ -23,6 +23,13 @@ final class DownloadProgressTests: XCTestCase {
         )
     }
 
+    func testTreatsNonFiniteProgressAsDiagnostic() {
+        for value in ["nan", "NaN%", "inf", "-infinity%"] {
+            let line = "track-downloader:progress:\(value)|3.2MiB/s|00:12"
+            XCTAssertEqual(YTDLPOutputParser.parse(line: line), .diagnostic(line), value)
+        }
+    }
+
     func testParsesMachineFinalPathRecord() {
         XCTAssertEqual(
             YTDLPOutputParser.parse(line: "track-downloader:filepath:/tmp/Artist - Track.opus"),
