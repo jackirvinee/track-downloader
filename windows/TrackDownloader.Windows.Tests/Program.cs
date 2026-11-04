@@ -18,6 +18,42 @@ var tests = new (string Name, Action Run)[]
         AssertThrows(() => UrlPolicy.Validate("https://user:secret@www.youtube.com/watch?v=abc"));
         AssertThrows(() => UrlPolicy.Validate("https://user@soundcloud.com/artist/track"));
     }),
+    ("ignores relative and resolves quoted PATH entries", () =>
+    {
+        using var directory = new TestDirectory();
+        var applicationDirectory = directory.Create("app");
+        var workingDirectory = directory.Create("cwd");
+        var plantedDirectory = Path.Combine(workingDirectory, "planted");
+        Directory.CreateDirectory(plantedDirectory);
+        var quotedDirectory = directory.Create("quoted dir");
+        foreach (var name in ToolLocator.RequiredToolNames)
+        {
+            File.WriteAllText(Path.Combine(plantedDirectory, name), "planted");
+            File.WriteAllText(Path.Combine(quotedDirectory, name), "quoted");
+        }
+
+        var previousDirectory = Environment.CurrentDirectory;
+        Environment.CurrentDirectory = workingDirectory;
+        try
+        {
+            try
+            {
+                ToolLocator.FindRequired(applicationDirectory, "planted;.");
+                throw new InvalidOperationException("Expected relative PATH entries to be ignored.");
+            }
+            catch (ToolResolutionException error)
+            {
+                AssertEqual(ToolLocator.RequiredToolNames.Length.ToString(), error.MissingTools.Count.ToString());
+            }
+
+            var tools = ToolLocator.FindRequired(applicationDirectory, $"planted;\"{quotedDirectory}\"");
+            AssertEqual(Path.Combine(quotedDirectory, "yt-dlp.exe"), tools.YtDlp);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = previousDirectory;
+        }
+    }),
     ("prefers app-adjacent runtime tools", () =>
     {
         using var directory = new TestDirectory();

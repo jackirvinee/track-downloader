@@ -10,8 +10,13 @@ public static class ToolLocator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationDirectory);
 
+        // PATH entries may be quoted, and relative entries (such as ".") would
+        // resolve against the current directory, so only absolute ones are used.
         var directories = new[] { applicationDirectory }
-            .Concat(path.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            .Concat(path
+                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(entry => entry.Trim('"'))
+                .Where(Path.IsPathFullyQualified));
         var locations = RequiredToolNames.ToDictionary(
             name => name,
             name => directories.Select(directory => Path.Combine(directory, name)).FirstOrDefault(File.Exists),
