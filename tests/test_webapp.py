@@ -3,11 +3,13 @@ import http.client
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
 from track_downloader.webapp import (
     MAX_JSON_BODY_BYTES,
     JobState,
+    TrackDownloaderRequestHandler,
     TrackDownloaderServer,
     build_browser_launch_url,
     build_status_payload,
@@ -146,6 +148,46 @@ class WebAppSecurityTests(unittest.TestCase):
         self.assertEqual(launch_url.path, "/")
         self.assertEqual(launch_url.query, "")
         self.assertEqual(parse_qs(launch_url.fragment), {"session": [self.server.session_token]})
+
+    def test_concurrent_download_requests_start_only_one_job(self):
+        both_validated = threading.Barrier(2, timeout=2)
+        release_job = threading.Event()
+        started_jobs: list[list[str]] = []
+
+        def tools_present_after_both_requests_arrive(_yt_dlp: str) -> list[str]:
+            # Hold both requests between validation and job start, where the
+            # single-download guard used to be released.
+            both_validated.wait()
+            return []
+
+        def blocking_job(_handler, command: list[str]) -> None:
+            started_jobs.append(command)
+            release_job.wait(timeout=2)
+
+        headers = {
+            "X-TrackDownloader-Session": self.server.session_token,
+            "Content-Type": "application/json",
+        }
+        body = json.dumps({"url": "https://www.youtube.com/watch?v=fixture"}).encode("utf-8")
+        statuses: list[int] = []
+
+        def post() -> None:
+            status, _, _ = self.request("POST", "/api/download", body=body, headers=headers)
+            statuses.append(status)
+
+        with (
+            patch("track_downloader.webapp._missing_runtime_tools", tools_present_after_both_requests_arrive),
+            patch.object(TrackDownloaderRequestHandler, "run_job", blocking_job),
+        ):
+            clients = [threading.Thread(target=post) for _ in range(2)]
+            for client in clients:
+                client.start()
+            for client in clients:
+                client.join(timeout=3)
+            release_job.set()
+
+        self.assertEqual(sorted(statuses), [200, 409])
+        self.assertEqual(len(started_jobs), 1)
 
     def test_status_requires_token_and_foreign_host_is_rejected(self):
         status, _, _ = self.request("GET", "/api/status")

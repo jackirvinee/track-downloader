@@ -393,8 +393,17 @@ class TrackDownloaderRequestHandler(BaseHTTPRequestHandler):
             self.send_json({"message": "Missing required tool(s): " + ", ".join(missing)}, status=500)
             return
 
+        # Check and claim the single download slot atomically; the early check
+        # above is only a fast path and can race with another request.
         with self.server.lock:
-            self.server.state = JobState(status="running", message="Downloading...")
+            if self.server.state.status == "running":
+                claimed = False
+            else:
+                self.server.state = JobState(status="running", message="Downloading...")
+                claimed = True
+        if not claimed:
+            self.send_json({"message": "A download is already running."}, status=409)
+            return
 
         thread = threading.Thread(target=self.run_job, args=(command,), daemon=True)
         thread.start()
